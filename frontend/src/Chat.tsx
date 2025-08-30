@@ -65,13 +65,13 @@ const Chat: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-screen bg-gray-50">
-            <header className="bg-white border-b border-gray-200 p-4">
+        <div className="fixed inset-0 flex flex-col bg-gray-50">
+            <header className="bg-white border-b border-gray-200 p-4 flex-shrink-0">
                 <h1 className="text-xl font-semibold text-gray-800">Spore Box</h1>
                 <p className="text-sm text-gray-500">Device: {deviceName}</p>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-4" style={{ paddingBottom: '80px' }}>
                 {loading && messages.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
                         <div className="text-gray-500">Loading messages...</div>
@@ -95,7 +95,9 @@ const Chat: React.FC = () => {
                 <div ref={messagesEndRef} />
             </div>
 
-            <MessageInput onSendMessage={handleSendMessage} disabled={loading} />
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
+                <MessageInput onSendMessage={handleSendMessage} disabled={loading} />
+            </div>
         </div>
     );
 };

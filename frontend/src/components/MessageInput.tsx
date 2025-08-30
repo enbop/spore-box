@@ -10,20 +10,43 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled }) 
     const [message, setMessage] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
+    const textInputRef = useRef<HTMLInputElement>(null);
+
+    // Auto focus on mount
+    React.useEffect(() => {
+        if (textInputRef.current && !disabled) {
+            textInputRef.current.focus();
+        }
+    }, [disabled]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (message.trim() && !disabled) {
-            onSendMessage(message.trim(), 'text');
-            setMessage('');
-        }
-    };
+            const content = message.trim();
+            setMessage(''); // Clear message first
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'file') => {
+            // Send the message
+            onSendMessage(content, 'text');
+
+            // Refocus the input after a short delay to ensure it works
+            requestAnimationFrame(() => {
+                if (textInputRef.current) {
+                    textInputRef.current.focus();
+                }
+            });
+        }
+    }; const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'file') => {
         const file = e.target.files?.[0];
         if (file) {
             onSendMessage('', type, file);
             e.target.value = '';
+
+            // Refocus the text input after file upload
+            requestAnimationFrame(() => {
+                if (textInputRef.current) {
+                    textInputRef.current.focus();
+                }
+            });
         }
     };
 
@@ -35,6 +58,13 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled }) 
                 const file = item.getAsFile();
                 if (file) {
                     onSendMessage('', 'image', file);
+
+                    // Refocus the text input after paste
+                    requestAnimationFrame(() => {
+                        if (textInputRef.current) {
+                            textInputRef.current.focus();
+                        }
+                    });
                     return;
                 }
             }
@@ -42,7 +72,7 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled }) 
     };
 
     return (
-        <div className="border-t border-gray-200 p-4 bg-white">
+        <div className="p-4">
             <form onSubmit={handleSubmit} className="flex items-center gap-2">
                 <input
                     type="file"
@@ -62,7 +92,7 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled }) 
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={disabled}
-                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full disabled:opacity-50"
+                    className="flex-shrink-0 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full disabled:opacity-50 touch-manipulation"
                 >
                     <Paperclip size={20} />
                 </button>
@@ -71,25 +101,27 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled }) 
                     type="button"
                     onClick={() => imageInputRef.current?.click()}
                     disabled={disabled}
-                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full disabled:opacity-50"
+                    className="flex-shrink-0 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full disabled:opacity-50 touch-manipulation"
                 >
                     <ImageIcon size={20} />
                 </button>
 
                 <input
+                    ref={textInputRef}
                     type="text"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     onPaste={handlePaste}
                     placeholder="Type a message..."
                     disabled={disabled}
-                    className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    className="flex-1 min-w-0 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    style={{ fontSize: '16px' }} // Prevent zoom on iOS
                 />
 
                 <button
                     type="submit"
                     disabled={disabled || !message.trim()}
-                    className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-shrink-0 p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                 >
                     <Send size={20} />
                 </button>

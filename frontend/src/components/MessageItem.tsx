@@ -97,11 +97,11 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn }) => {
 
     return (
         <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4`}>
-            <div className={`max-w-[70%] ${isOwn ? 'order-1' : 'order-2'}`}>
+            <div className={`max-w-[85%] sm:max-w-[70%] ${isOwn ? 'order-1' : 'order-2'}`}>
                 <div
-                    className={`rounded-lg px-4 py-2 ${isOwn
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-100 text-gray-900'
+                    className={`rounded-lg px-4 py-2 break-words overflow-hidden ${isOwn
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-900'
                         }`}
                 >
                     {renderContent()}
