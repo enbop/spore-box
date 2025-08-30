@@ -13,6 +13,7 @@ const Chat: React.FC = () => {
     useEffect(() => {
         const initDevice = async () => {
             const name = await api.getDeviceName();
+            console.log('Device name from URL:', name); // Add debug log
             setDeviceName(name);
         };
         initDevice();
