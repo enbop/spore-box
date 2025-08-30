@@ -1,24 +1,54 @@
 use rust_embed::Embed;
-use wstd::http::body::{BodyForthcoming, IncomingBody, OutgoingBody};
+use serde::{Deserialize, Serialize};
+use std::fs::OpenOptions;
+use std::io::{BufRead, BufReader, Write};
+use uuid::Uuid;
+use wstd::http::body::IncomingBody;
 use wstd::http::server::{Finished, Responder};
 use wstd::http::{IntoBody, Request, Response, StatusCode};
-use wstd::io::{AsyncWrite, copy, empty};
-use wstd::time::{Duration, Instant};
+use wstd::io::empty;
 
 #[derive(Embed)]
 #[folder = "dist/"]
 struct Assets;
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct Message {
+    id: String,
+    content: String,
+    sender: String,
+    timestamp: String,
+    #[serde(rename = "type")]
+    msg_type: String,
+    filename: Option<String>,
+    #[serde(rename = "fileSize")]
+    file_size: Option<u64>,
+    #[serde(rename = "mimeType")]
+    mime_type: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct SendMessageRequest {
+    content: String,
+    sender: String,
+    #[serde(rename = "type")]
+    msg_type: String,
+    filename: Option<String>,
+}
+
 #[wstd::http_server]
 async fn main(request: Request<IncomingBody>, responder: Responder) -> Finished {
     let path = request.uri().path_and_query().unwrap().as_str();
     match path {
-        "/wait" => http_wait(request, responder).await,
-        "/echo" => http_echo(request, responder).await,
-        "/echo-headers" => http_echo_headers(request, responder).await,
-        "/echo-trailers" => http_echo_trailers(request, responder).await,
-        "/fail" => http_fail(request, responder).await,
-        "/bigfail" => http_bigfail(request, responder).await,
+        "/api/messages" => match request.method().as_str() {
+            "GET" => api_get_messages(request, responder).await,
+            "POST" => api_send_message(request, responder).await,
+            _ => method_not_allowed(responder).await,
+        },
+        "/api/upload" => match request.method().as_str() {
+            "POST" => api_upload_file(request, responder).await,
+            _ => method_not_allowed(responder).await,
+        },
         "/" => http_home(request, responder).await,
         _ => {
             // Try to serve static files
@@ -31,6 +61,96 @@ async fn main(request: Request<IncomingBody>, responder: Responder) -> Finished 
     }
 }
 
+async fn method_not_allowed(responder: Responder) -> Finished {
+    let response = Response::builder()
+        .status(StatusCode::METHOD_NOT_ALLOWED)
+        .body(empty())
+        .unwrap();
+    responder.respond(response).await
+}
+
+async fn api_get_messages(_request: Request<IncomingBody>, responder: Responder) -> Finished {
+    let messages = load_messages().unwrap_or_default();
+    let json = serde_json::to_string(&messages).unwrap_or_else(|_| "[]".to_string());
+
+    let response = Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .header("Access-Control-Allow-Origin", "*")
+        .body(json.into_body())
+        .unwrap();
+    responder.respond(response).await
+}
+
+async fn api_send_message(_request: Request<IncomingBody>, responder: Responder) -> Finished {
+    // For now, create a simple test message
+    let test_message = Message {
+        id: Uuid::new_v4().to_string(),
+        content: "Hello from server".to_string(),
+        sender: "Server".to_string(),
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        msg_type: "text".to_string(),
+        filename: None,
+        file_size: None,
+        mime_type: None,
+    };
+
+    // Save the message
+    let _ = save_message(&test_message);
+
+    let json = serde_json::to_string(&test_message).unwrap_or_else(|_| "{}".to_string());
+    let response = Response::builder()
+        .status(StatusCode::CREATED)
+        .header("Content-Type", "application/json")
+        .header("Access-Control-Allow-Origin", "*")
+        .body(json.into_body())
+        .unwrap();
+    responder.respond(response).await
+}
+
+async fn api_upload_file(_request: Request<IncomingBody>, responder: Responder) -> Finished {
+    // TODO: Implement file upload
+    let response = Response::builder()
+        .status(StatusCode::NOT_IMPLEMENTED)
+        .header("Access-Control-Allow-Origin", "*")
+        .body("File upload not implemented yet".into_body())
+        .unwrap();
+    responder.respond(response).await
+}
+
+fn load_messages() -> Result<Vec<Message>, std::io::Error> {
+    let file = std::fs::File::open("data/messages.jsonl");
+    match file {
+        Ok(file) => {
+            let reader = BufReader::new(file);
+            let mut messages = Vec::new();
+            for line in reader.lines() {
+                if let Ok(line) = line {
+                    if let Ok(message) = serde_json::from_str::<Message>(&line) {
+                        messages.push(message);
+                    }
+                }
+            }
+            Ok(messages)
+        }
+        Err(_) => Ok(Vec::new()), // Return empty vec if file doesn't exist
+    }
+}
+
+fn save_message(message: &Message) -> Result<(), std::io::Error> {
+    // Ensure directory exists
+    std::fs::create_dir_all("data")?;
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("data/messages.jsonl")?;
+
+    let json = serde_json::to_string(message)?;
+    writeln!(file, "{}", json)?;
+    Ok(())
+}
+
 async fn http_home(_request: Request<IncomingBody>, responder: Responder) -> Finished {
     // Serve index.html for the home page
     if let Some((file, _)) = serve_static_file("/") {
@@ -38,66 +158,6 @@ async fn http_home(_request: Request<IncomingBody>, responder: Responder) -> Fin
     } else {
         http_not_found(_request, responder).await
     }
-}
-
-async fn http_wait(_request: Request<IncomingBody>, responder: Responder) -> Finished {
-    // Get the time now
-    let now = Instant::now();
-
-    // Sleep for one second.
-    wstd::task::sleep(Duration::from_secs(1)).await;
-
-    // Compute how long we slept for.
-    let elapsed = Instant::now().duration_since(now).as_millis();
-
-    // To stream data to the response body, use `Responder::start_response`.
-    let mut body = responder.start_response(Response::new(BodyForthcoming));
-    let result = body
-        .write_all(format!("slept for {elapsed} millis\n").as_bytes())
-        .await;
-    Finished::finish(body, result, None)
-}
-
-async fn http_echo(mut request: Request<IncomingBody>, responder: Responder) -> Finished {
-    // Stream data from the request body to the response body.
-    let mut body = responder.start_response(Response::new(BodyForthcoming));
-    let result = copy(request.body_mut(), &mut body).await;
-    Finished::finish(body, result, None)
-}
-
-async fn http_fail(_request: Request<IncomingBody>, responder: Responder) -> Finished {
-    let body = responder.start_response(Response::new(BodyForthcoming));
-    Finished::fail(body)
-}
-
-async fn http_bigfail(_request: Request<IncomingBody>, responder: Responder) -> Finished {
-    async fn write_body(body: &mut OutgoingBody) -> wstd::io::Result<()> {
-        for _ in 0..0x10 {
-            body.write_all("big big big big\n".as_bytes()).await?;
-        }
-        body.flush().await?;
-        Ok(())
-    }
-
-    let mut body = responder.start_response(Response::new(BodyForthcoming));
-    let _ = write_body(&mut body).await;
-    Finished::fail(body)
-}
-
-async fn http_echo_headers(request: Request<IncomingBody>, responder: Responder) -> Finished {
-    let mut response = Response::builder();
-    *response.headers_mut().unwrap() = request.into_parts().0.headers;
-    let response = response.body(empty()).unwrap();
-    responder.respond(response).await
-}
-
-async fn http_echo_trailers(request: Request<IncomingBody>, responder: Responder) -> Finished {
-    let body = responder.start_response(Response::new(BodyForthcoming));
-    let (trailers, result) = match request.into_body().finish().await {
-        Ok(trailers) => (trailers, Ok(())),
-        Err(err) => (Default::default(), Err(std::io::Error::other(err))),
-    };
-    Finished::finish(body, result, trailers)
 }
 
 async fn http_not_found(_request: Request<IncomingBody>, responder: Responder) -> Finished {
