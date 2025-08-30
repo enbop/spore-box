@@ -6,7 +6,7 @@ use uuid::Uuid;
 use wstd::http::body::IncomingBody;
 use wstd::http::server::{Finished, Responder};
 use wstd::http::{IntoBody, Request, Response, StatusCode};
-use wstd::io::{empty, copy};
+use wstd::io::{copy, empty};
 
 #[derive(Embed)]
 #[folder = "frontend/build"]
@@ -38,9 +38,10 @@ struct SendMessageRequest {
 
 #[wstd::http_server]
 async fn main(request: Request<IncomingBody>, responder: Responder) -> Finished {
-    let path = request.uri().path_and_query().unwrap().as_str();
+    let uri = request.uri();
+    let path = uri.path(); // Only get the path, not query parameters
     let method = request.method().as_str();
-    
+
     // Handle CORS preflight requests
     if method == "OPTIONS" {
         let response = Response::builder()
@@ -52,7 +53,7 @@ async fn main(request: Request<IncomingBody>, responder: Responder) -> Finished 
             .unwrap();
         return responder.respond(response).await;
     }
-    
+
     match path {
         "/api/messages" => match method {
             "GET" => api_get_messages(request, responder).await,
@@ -99,10 +100,14 @@ async fn api_get_messages(_request: Request<IncomingBody>, responder: Responder)
 async fn api_send_message(mut request: Request<IncomingBody>, responder: Responder) -> Finished {
     // Read request body
     let mut body_data = Vec::new();
-    
+
     // Try to read the body data
-    let copy_result = copy(request.body_mut(), &mut wstd::io::Cursor::new(&mut body_data)).await;
-    
+    let copy_result = copy(
+        request.body_mut(),
+        &mut wstd::io::Cursor::new(&mut body_data),
+    )
+    .await;
+
     let send_request = if copy_result.is_ok() {
         let body_str = String::from_utf8_lossy(&body_data);
         // Parse JSON request
