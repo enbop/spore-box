@@ -8,9 +8,10 @@ import { Download, FileText, Image } from 'lucide-react';
 interface MessageItemProps {
     message: Message;
     isOwn: boolean;
+    onImageLoad?: () => void;
 }
 
-const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn }) => {
+const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn, onImageLoad }) => {
     const formatTime = (timestamp: string) => {
         return new Date(timestamp).toLocaleTimeString([], {
             hour: '2-digit',
@@ -35,8 +36,11 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn }) => {
                             alt={message.filename}
                             className="max-w-sm rounded-lg cursor-pointer"
                             onClick={() => window.open(`/api/files/${message.content}`, '_blank')}
+                            onLoad={onImageLoad}
                         />
-                        <div className="text-xs text-gray-500 flex items-center gap-1">
+                        <div className={`text-xs flex items-center gap-1 ${
+                            isOwn ? 'text-blue-200' : 'text-gray-500'
+                        }`}>
                             <Image size={12} />
                             {message.filename} ({formatFileSize(message.fileSize)})
                         </div>
@@ -45,18 +49,32 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn }) => {
 
             case 'file':
                 return (
-                    <div className="border border-gray-300 rounded-lg p-3 max-w-xs">
+                    <div className={`border rounded-lg p-3 max-w-xs ${
+                        isOwn 
+                            ? 'border-blue-300 bg-blue-50' 
+                            : 'border-gray-300 bg-white'
+                    }`}>
                         <div className="flex items-center gap-2 mb-1">
-                            <FileText size={16} />
-                            <span className="text-sm font-medium truncate">{message.filename}</span>
+                            <FileText size={16} className={isOwn ? 'text-blue-600' : 'text-gray-600'} />
+                            <span className={`text-sm font-medium truncate ${
+                                isOwn ? 'text-blue-900' : 'text-gray-900'
+                            }`}>
+                                {message.filename}
+                            </span>
                         </div>
-                        <div className="text-xs text-gray-500 mb-2">
+                        <div className={`text-xs mb-2 ${
+                            isOwn ? 'text-blue-700' : 'text-gray-500'
+                        }`}>
                             {formatFileSize(message.fileSize)}
                         </div>
                         <a
                             href={`/api/files/${message.content}`}
                             download={message.filename}
-                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm"
+                            className={`inline-flex items-center gap-1 text-sm font-medium ${
+                                isOwn 
+                                    ? 'text-blue-700 hover:text-blue-800' 
+                                    : 'text-gray-700 hover:text-gray-900'
+                            }`}
                         >
                             <Download size={12} />
                             Download

@@ -17,7 +17,10 @@ const Chat: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(false);
     const [deviceName, setDeviceName] = useState('Browser');
+    const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+    const [imagesLoaded, setImagesLoaded] = useState(0);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const initDevice = async () => {
@@ -57,7 +60,12 @@ const Chat: React.FC = () => {
                     setMessages(prev => {
                         const existingIds = new Set(prev.map(m => m.id));
                         const newMessages = response.messages.filter(m => !existingIds.has(m.id));
-                        return [...prev, ...newMessages];
+                        
+                        // Update messages only if there are new ones
+                        if (newMessages.length > 0) {
+                            return [...prev, ...newMessages];
+                        }
+                        return prev; // No new messages, return previous state
                     });
                     
                     currentPollInterval = POLLING_CONFIG.INITIAL_INTERVAL;
@@ -112,8 +120,45 @@ const Chat: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+        const checkIfAtBottom = () => {
+            if (messagesContainerRef.current) {
+                const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+                const isAtBottom = scrollHeight - scrollTop - clientHeight < 100; // 100px 容差
+                setShouldAutoScroll(isAtBottom);
+            }
+        };
+
+        if (shouldAutoScroll) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        const container = messagesContainerRef.current;
+        if (container) {
+            container.addEventListener('scroll', checkIfAtBottom);
+            return () => container.removeEventListener('scroll', checkIfAtBottom);
+        }
+    }, [messages, shouldAutoScroll, imagesLoaded]); // 添加 imagesLoaded 依赖
+
+    const handleImageLoad = () => {
+        setImagesLoaded(prev => prev + 1);
+        if (shouldAutoScroll) {
+            setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+        }
+    };
+
+    useEffect(() => {
+        if (messages.length > 0 && !loading) {
+            const timer = setTimeout(() => {
+                if (shouldAutoScroll) {
+                    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+                }
+            }, 300);
+            
+            return () => clearTimeout(timer);
+        }
+    }, [loading, messages.length, shouldAutoScroll]);
 
     const handleSendMessage = async (content: string, type: 'text' | 'image' | 'file', file?: File) => {
         try {
@@ -133,6 +178,7 @@ const Chat: React.FC = () => {
             }
 
             setMessages(prev => [...prev, newMessage]);
+            setShouldAutoScroll(true);
         } catch (error) {
             console.error('Failed to send message:', error);
             alert('Failed to send message. Please try again.');
@@ -148,7 +194,7 @@ const Chat: React.FC = () => {
                 <p className="text-sm text-gray-500">Device: {deviceName}</p>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-4" style={{ paddingBottom: '80px' }}>
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4" style={{ paddingBottom: '80px' }}>
                 {loading && messages.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
                         <div className="text-gray-500">Loading messages...</div>
@@ -166,6 +212,7 @@ const Chat: React.FC = () => {
                             key={message.id}
                             message={message}
                             isOwn={message.sender === deviceName}
+                            onImageLoad={handleImageLoad}
                         />
                     ))
                 )}
