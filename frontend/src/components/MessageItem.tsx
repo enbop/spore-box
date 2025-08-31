@@ -96,43 +96,30 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn, onImageLoad }
 
             default:
                 return (
-                    <div className="flex items-start gap-2">
-                        <div className="prose prose-sm max-w-none flex-1">
-                            <ReactMarkdown
-                                components={{
-                                    code({ className, children, ...props }: any) {
-                                        const match = /language-(\w+)/.exec(className || '');
-                                        const isInline = !match;
-                                        return !isInline ? (
-                                            <SyntaxHighlighter
-                                                style={dark as any}
-                                                language={match[1]}
-                                                PreTag="div"
-                                            >
-                                                {String(children).replace(/\n$/, '')}
-                                            </SyntaxHighlighter>
-                                        ) : (
-                                            <code className={className} {...props}>
-                                                {children}
-                                            </code>
-                                        );
-                                    }
-                                }}
-                            >
-                                {message.content}
-                            </ReactMarkdown>
-                        </div>
-                        <button
-                            onClick={handleCopy}
-                            className={`flex-shrink-0 p-1.5 rounded-md transition-colors ${
-                                isOwn 
-                                    ? 'bg-blue-400 hover:bg-blue-500 text-white' 
-                                    : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
-                            }`}
-                            title={copied ? 'Copied!' : 'Copy message'}
+                    <div className="prose prose-sm max-w-none">
+                        <ReactMarkdown
+                            components={{
+                                code({ className, children, ...props }: any) {
+                                    const match = /language-(\w+)/.exec(className || '');
+                                    const isInline = !match;
+                                    return !isInline ? (
+                                        <SyntaxHighlighter
+                                            style={dark as any}
+                                            language={match[1]}
+                                            PreTag="div"
+                                        >
+                                            {String(children).replace(/\n$/, '')}
+                                        </SyntaxHighlighter>
+                                    ) : (
+                                        <code className={className} {...props}>
+                                            {children}
+                                        </code>
+                                    );
+                                }
+                            }}
                         >
-                            {copied ? <Check size={12} /> : <Copy size={12} />}
-                        </button>
+                            {message.content}
+                        </ReactMarkdown>
                     </div>
                 );
         }
@@ -142,7 +129,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn, onImageLoad }
         <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4`}>
             <div className={`max-w-[85%] sm:max-w-[70%] ${isOwn ? 'order-1' : 'order-2'}`}>
                 <div
-                    className={`rounded-lg px-4 py-2 break-words overflow-hidden ${isOwn
+                    className={`rounded-lg px-4 py-2 break-words ${isOwn
                         ? 'bg-blue-500 text-white'
                         : 'bg-gray-100 text-gray-900'
                         }`}
@@ -150,10 +137,24 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn, onImageLoad }
                     {renderContent()}
                 </div>
                 <div
-                    className={`text-xs text-gray-500 mt-1 ${isOwn ? 'text-right' : 'text-left'
-                        }`}
+                    className={`flex items-center justify-between text-xs text-gray-500 mt-1`}
                 >
-                    {message.sender} · {formatTime(message.timestamp)}
+                    <span className={isOwn ? 'order-2' : 'order-1'}>
+                        {message.sender} · {formatTime(message.timestamp)}
+                    </span>
+                    {message.type === 'text' && (
+                        <button
+                            onClick={handleCopy}
+                            className={`p-1 rounded transition-colors ${isOwn ? 'order-1' : 'order-2'} ${
+                                isOwn 
+                                    ? 'hover:bg-blue-100 text-gray-600' 
+                                    : 'hover:bg-gray-200 text-gray-500'
+                            }`}
+                            title={copied ? 'Copied!' : 'Copy message'}
+                        >
+                            {copied ? <Check size={12} /> : <Copy size={12} />}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
