@@ -42,16 +42,7 @@ async fn main(request: Request<IncomingBody>, responder: Responder) -> Finished 
     let path = uri.path();
     let method = request.method().as_str();
 
-    if method == "OPTIONS" {
-        let response = Response::builder()
-            .status(StatusCode::OK)
-            .header("Access-Control-Allow-Origin", "*")
-            .header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-            .header("Access-Control-Allow-Headers", "Content-Type")
-            .body(empty())
-            .unwrap();
-        return responder.respond(response).await;
-    }
+
 
     match path {
         "/api/messages" => match method {
@@ -93,7 +84,6 @@ async fn api_get_messages(_request: Request<IncomingBody>, responder: Responder)
     let response = Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", "application/json")
-        .header("Access-Control-Allow-Origin", "*")
         .body(json.into_body())
         .unwrap();
     responder.respond(response).await
@@ -116,7 +106,6 @@ async fn api_poll_messages(request: Request<IncomingBody>, responder: Responder)
     let response = Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", "application/json")
-        .header("Access-Control-Allow-Origin", "*")
         .body(json.into_body())
         .unwrap();
     responder.respond(response).await
@@ -168,7 +157,6 @@ async fn api_send_message(mut request: Request<IncomingBody>, responder: Respond
     let response = Response::builder()
         .status(StatusCode::CREATED)
         .header("Content-Type", "application/json")
-        .header("Access-Control-Allow-Origin", "*")
         .body(json.into_body())
         .unwrap();
     responder.respond(response).await
@@ -178,7 +166,6 @@ async fn api_upload_file(_request: Request<IncomingBody>, responder: Responder) 
     // TODO: Implement file upload
     let response = Response::builder()
         .status(StatusCode::NOT_IMPLEMENTED)
-        .header("Access-Control-Allow-Origin", "*")
         .body("File upload not implemented yet".into_body())
         .unwrap();
     responder.respond(response).await
