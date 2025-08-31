@@ -4,6 +4,15 @@ import MessageInput from './components/MessageInput';
 import { Message } from './types';
 import { api } from './api';
 
+// Polling configuration constants
+const POLLING_CONFIG = {
+    INITIAL_INTERVAL: 3000,      // 3 seconds initial polling interval
+    MAX_INTERVAL: 30000,         // 30 seconds maximum polling interval
+    SUCCESS_MULTIPLIER: 1,       // Reset to initial on success
+    IDLE_MULTIPLIER: 1.5,        // Increase by 1.5x when no new messages
+    ERROR_MULTIPLIER: 2,         // Double interval on error
+};
+
 const Chat: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(false);
@@ -37,7 +46,7 @@ const Chat: React.FC = () => {
         let pollInterval: NodeJS.Timeout | null = null;
         let lastTimestamp = new Date().toISOString();
         let isActive = true;
-        let currentPollInterval = 1000;
+        let currentPollInterval = POLLING_CONFIG.INITIAL_INTERVAL;
 
         const poll = async () => {
             if (!isActive) return;
@@ -51,15 +60,21 @@ const Chat: React.FC = () => {
                         return [...prev, ...newMessages];
                     });
                     
-                    currentPollInterval = 1000;
+                    currentPollInterval = POLLING_CONFIG.INITIAL_INTERVAL;
                 } else {
-                    currentPollInterval = Math.min(currentPollInterval * 1.5, 30000);
+                    currentPollInterval = Math.min(
+                        currentPollInterval * POLLING_CONFIG.IDLE_MULTIPLIER, 
+                        POLLING_CONFIG.MAX_INTERVAL
+                    );
                 }
                 
                 lastTimestamp = response.timestamp;
             } catch (error) {
                 console.error('Polling failed:', error);
-                currentPollInterval = Math.min(currentPollInterval * 2, 30000);
+                currentPollInterval = Math.min(
+                    currentPollInterval * POLLING_CONFIG.ERROR_MULTIPLIER, 
+                    POLLING_CONFIG.MAX_INTERVAL
+                );
             }
 
             if (isActive) {
@@ -77,7 +92,7 @@ const Chat: React.FC = () => {
             } else {
                 if (!isActive) {
                     isActive = true;
-                    currentPollInterval = 1000;
+                    currentPollInterval = POLLING_CONFIG.INITIAL_INTERVAL;
                     poll();
                 }
             }

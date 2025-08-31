@@ -42,8 +42,6 @@ async fn main(request: Request<IncomingBody>, responder: Responder) -> Finished 
     let path = uri.path();
     let method = request.method().as_str();
 
-
-
     match path {
         "/api/messages" => match method {
             "GET" => api_get_messages(request, responder).await,
