@@ -35,7 +35,9 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled }) 
                 }
             });
         }
-    }; const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'file') => {
+    };
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'file') => {
         const file = e.target.files?.[0];
         if (file) {
             onSendMessage('', type, file);

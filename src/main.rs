@@ -39,10 +39,9 @@ struct SendMessageRequest {
 #[wstd::http_server]
 async fn main(request: Request<IncomingBody>, responder: Responder) -> Finished {
     let uri = request.uri();
-    let path = uri.path(); // Only get the path, not query parameters
+    let path = uri.path();
     let method = request.method().as_str();
 
-    // Handle CORS preflight requests
     if method == "OPTIONS" {
         let response = Response::builder()
             .status(StatusCode::OK)
@@ -60,13 +59,16 @@ async fn main(request: Request<IncomingBody>, responder: Responder) -> Finished 
             "POST" => api_send_message(request, responder).await,
             _ => method_not_allowed(responder).await,
         },
+        "/api/messages/poll" => match method {
+            "GET" => api_poll_messages(request, responder).await,
+            _ => method_not_allowed(responder).await,
+        },
         "/api/upload" => match method {
             "POST" => api_upload_file(request, responder).await,
             _ => method_not_allowed(responder).await,
         },
         "/" => http_home(request, responder).await,
         _ => {
-            // Try to serve static files
             if let Some((file, file_path)) = serve_static_file(path) {
                 serve_asset(file, &file_path, responder).await
             } else {
@@ -97,11 +99,32 @@ async fn api_get_messages(_request: Request<IncomingBody>, responder: Responder)
     responder.respond(response).await
 }
 
+async fn api_poll_messages(request: Request<IncomingBody>, responder: Responder) -> Finished {
+    let uri = request.uri();
+    let query = uri.query().unwrap_or("");
+
+    let since_timestamp = parse_since_parameter(query);
+    let new_messages = get_messages_since(&since_timestamp).unwrap_or_default();
+
+    let response_data = serde_json::json!({
+        "messages": new_messages,
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    });
+
+    let json = serde_json::to_string(&response_data).unwrap_or_else(|_| "{}".to_string());
+
+    let response = Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .header("Access-Control-Allow-Origin", "*")
+        .body(json.into_body())
+        .unwrap();
+    responder.respond(response).await
+}
+
 async fn api_send_message(mut request: Request<IncomingBody>, responder: Responder) -> Finished {
-    // Read request body
     let mut body_data = Vec::new();
 
-    // Try to read the body data
     let copy_result = copy(
         request.body_mut(),
         &mut wstd::io::Cursor::new(&mut body_data),
@@ -110,7 +133,6 @@ async fn api_send_message(mut request: Request<IncomingBody>, responder: Respond
 
     let send_request = if copy_result.is_ok() {
         let body_str = String::from_utf8_lossy(&body_data);
-        // Parse JSON request
         serde_json::from_str::<SendMessageRequest>(&body_str).unwrap_or_else(|_| {
             SendMessageRequest {
                 content: "Failed to parse request".to_string(),
@@ -120,7 +142,6 @@ async fn api_send_message(mut request: Request<IncomingBody>, responder: Respond
             }
         })
     } else {
-        // Fallback if body reading fails
         SendMessageRequest {
             content: "Body read failed".to_string(),
             sender: "Unknown".to_string(),
@@ -196,8 +217,42 @@ fn save_message(message: &Message) -> Result<(), std::io::Error> {
     Ok(())
 }
 
+fn parse_since_parameter(query: &str) -> String {
+    for param in query.split('&') {
+        if let Some((key, value)) = param.split_once('=') {
+            if key == "since" {
+                return value.replace("%20", " ").replace("%3A", ":");
+            }
+        }
+    }
+    "1970-01-01T00:00:00Z".to_string()
+}
+
+fn get_messages_since(since: &str) -> Result<Vec<Message>, std::io::Error> {
+    let all_messages = load_messages()?;
+
+    let since_time = match chrono::DateTime::parse_from_rfc3339(since) {
+        Ok(time) => time,
+        Err(_) => {
+            return Ok(all_messages);
+        }
+    };
+
+    let filtered_messages: Vec<Message> = all_messages
+        .into_iter()
+        .filter(|msg| {
+            if let Ok(msg_time) = chrono::DateTime::parse_from_rfc3339(&msg.timestamp) {
+                msg_time > since_time
+            } else {
+                true
+            }
+        })
+        .collect();
+
+    Ok(filtered_messages)
+}
+
 async fn http_home(_request: Request<IncomingBody>, responder: Responder) -> Finished {
-    // Serve index.html for the home page
     if let Some((file, _)) = serve_static_file("/") {
         serve_asset(file, "index.html", responder).await
     } else {
@@ -214,20 +269,16 @@ async fn http_not_found(_request: Request<IncomingBody>, responder: Responder) -
 }
 
 fn serve_static_file(path: &str) -> Option<(rust_embed::EmbeddedFile, String)> {
-    // Remove leading slash and try to get the file from assets
     let file_path = path.trim_start_matches('/');
 
-    // If empty path, serve index.html
     if file_path.is_empty() {
         return Assets::get("index.html").map(|f| (f, "index.html".to_string()));
     }
 
-    // Try to get the file directly
     if let Some(file) = Assets::get(file_path) {
         return Some((file, file_path.to_string()));
     }
 
-    // If it's a directory path, try to serve index.html from that directory
     let index_path = format!("{}/index.html", file_path.trim_end_matches('/'));
     Assets::get(&index_path).map(|f| (f, index_path))
 }
@@ -239,7 +290,6 @@ async fn serve_asset(
 ) -> Finished {
     let mut response = Response::builder();
 
-    // Set appropriate Content-Type based on file extension
     if let Some(content_type) = get_content_type(file_path) {
         response = response.header("Content-Type", content_type);
     }

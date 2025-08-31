@@ -13,7 +13,6 @@ const Chat: React.FC = () => {
     useEffect(() => {
         const initDevice = async () => {
             const name = await api.getDeviceName();
-            console.log('Device name from URL:', name); // Add debug log
             setDeviceName(name);
         };
         initDevice();
@@ -32,6 +31,69 @@ const Chat: React.FC = () => {
             }
         };
         loadMessages();
+    }, []);
+
+    useEffect(() => {
+        let pollInterval: NodeJS.Timeout | null = null;
+        let lastTimestamp = new Date().toISOString();
+        let isActive = true;
+        let currentPollInterval = 1000;
+
+        const poll = async () => {
+            if (!isActive) return;
+
+            try {
+                const response = await api.pollMessages(lastTimestamp);
+                if (response.messages && response.messages.length > 0) {
+                    setMessages(prev => {
+                        const existingIds = new Set(prev.map(m => m.id));
+                        const newMessages = response.messages.filter(m => !existingIds.has(m.id));
+                        return [...prev, ...newMessages];
+                    });
+                    
+                    currentPollInterval = 1000;
+                } else {
+                    currentPollInterval = Math.min(currentPollInterval * 1.5, 30000);
+                }
+                
+                lastTimestamp = response.timestamp;
+            } catch (error) {
+                console.error('Polling failed:', error);
+                currentPollInterval = Math.min(currentPollInterval * 2, 30000);
+            }
+
+            if (isActive) {
+                pollInterval = setTimeout(poll, currentPollInterval);
+            }
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                isActive = false;
+                if (pollInterval) {
+                    clearTimeout(pollInterval);
+                    pollInterval = null;
+                }
+            } else {
+                if (!isActive) {
+                    isActive = true;
+                    currentPollInterval = 1000;
+                    poll();
+                }
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        poll();
+
+        return () => {
+            isActive = false;
+            if (pollInterval) {
+                clearTimeout(pollInterval);
+            }
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
     }, []);
 
     useEffect(() => {
