@@ -20,6 +20,9 @@ cd frontend
 yarn install
 yarn start     # Development server
 yarn build     # Production build
+
+cd ..
+mkdir data     # Create data dir
 ```
 
 ### Backend Development
@@ -28,6 +31,7 @@ Build the Rust WASM backend:
 ```bash
 cargo build --target=wasm32-wasip2 -r
 ```
+
 
 ### Running the Server
 
