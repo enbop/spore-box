@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { dark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Message } from '../types';
-import { Download, FileText, Image } from 'lucide-react';
+import { Download, FileText, Image, Copy, Check } from 'lucide-react';
 
 interface MessageItemProps {
     message: Message;
@@ -12,6 +12,8 @@ interface MessageItemProps {
 }
 
 const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn, onImageLoad }) => {
+    const [copied, setCopied] = useState(false);
+
     const formatTime = (timestamp: string) => {
         return new Date(timestamp).toLocaleTimeString([], {
             hour: '2-digit',
@@ -24,6 +26,16 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn, onImageLoad }
         const sizes = ['B', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(1024));
         return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+    };
+
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(message.content);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+        }
     };
 
     const renderContent = () => {
@@ -84,30 +96,43 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn, onImageLoad }
 
             default:
                 return (
-                    <div className="prose prose-sm max-w-none">
-                        <ReactMarkdown
-                            components={{
-                                code({ className, children, ...props }: any) {
-                                    const match = /language-(\w+)/.exec(className || '');
-                                    const isInline = !match;
-                                    return !isInline ? (
-                                        <SyntaxHighlighter
-                                            style={dark as any}
-                                            language={match[1]}
-                                            PreTag="div"
-                                        >
-                                            {String(children).replace(/\n$/, '')}
-                                        </SyntaxHighlighter>
-                                    ) : (
-                                        <code className={className} {...props}>
-                                            {children}
-                                        </code>
-                                    );
-                                }
-                            }}
+                    <div className="flex items-start gap-2">
+                        <div className="prose prose-sm max-w-none flex-1">
+                            <ReactMarkdown
+                                components={{
+                                    code({ className, children, ...props }: any) {
+                                        const match = /language-(\w+)/.exec(className || '');
+                                        const isInline = !match;
+                                        return !isInline ? (
+                                            <SyntaxHighlighter
+                                                style={dark as any}
+                                                language={match[1]}
+                                                PreTag="div"
+                                            >
+                                                {String(children).replace(/\n$/, '')}
+                                            </SyntaxHighlighter>
+                                        ) : (
+                                            <code className={className} {...props}>
+                                                {children}
+                                            </code>
+                                        );
+                                    }
+                                }}
+                            >
+                                {message.content}
+                            </ReactMarkdown>
+                        </div>
+                        <button
+                            onClick={handleCopy}
+                            className={`flex-shrink-0 p-1.5 rounded-md transition-colors ${
+                                isOwn 
+                                    ? 'bg-blue-400 hover:bg-blue-500 text-white' 
+                                    : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                            }`}
+                            title={copied ? 'Copied!' : 'Copy message'}
                         >
-                            {message.content}
-                        </ReactMarkdown>
+                            {copied ? <Check size={12} /> : <Copy size={12} />}
+                        </button>
                     </div>
                 );
         }
