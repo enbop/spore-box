@@ -29,11 +29,6 @@ Build the Rust WASM backend:
 cargo build --target=wasm32-wasip2 -r
 ```
 
-Copy frontend build to backend:
-```bash
-rm -rf dist && cp -r frontend/build dist
-```
-
 ### Running the Server
 
 Start the WASM server with data directory access:
