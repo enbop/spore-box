@@ -1,0 +1,77 @@
+name: "WASM Release"
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  wasm_release_build:
+    name: WASM release build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        shell: bash
+        run: |
+          rustup update stable --no-self-update && rustup default stable
+          rustup target add wasm32-wasip2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'yarn'
+          cache-dependency-path: './frontend/yarn.lock'
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: yarn install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: yarn build
+
+      - name: Build WASM backend
+        run: |
+          cargo build --target=wasm32-wasip2 --release
+
+      - name: List build outputs
+        run: |
+          echo "WASM file:"
+          ls -la target/wasm32-wasip2/release/
+
+      - name: Archive WASM file
+        run: |
+          cp target/wasm32-wasip2/release/spore-box.wasm ./spore-box.wasm
+
+      - name: Update nightly release
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit nightly --title "Nightly Build" --notes "Latest development build from commit ${{ github.sha }} ($(date))" || true
+
+      - name: Upload artifacts to release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RELEASE_TAG="nightly"
+          else
+            RELEASE_TAG="${{ github.ref_name }}"
+          fi
+          
+          echo "Uploading to release: $RELEASE_TAG"
+          
+          # Upload WASM file
+          gh release upload -R ${{ github.repository }} --clobber $RELEASE_TAG spore-box.wasm
